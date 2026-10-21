@@ -72,6 +72,7 @@ import com.bumptech.glide.request.target.Target;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.divider.MaterialDividerItemDecoration;
 import com.google.android.material.snackbar.Snackbar;
 
 import org.fox.ttrss.glide.ProgressTarget;
@@ -278,6 +279,13 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
         m_layoutManager = new LinearLayoutManager(m_activity.getApplicationContext());
         m_list.setLayoutManager(m_layoutManager);
         m_list.setItemAnimator(new DefaultItemAnimator());
+
+        if (m_compactLayoutMode) {
+            MaterialDividerItemDecoration materialDivider = new MaterialDividerItemDecoration(m_list.getContext(), m_layoutManager.getOrientation());
+            materialDivider.setDividerInsetStart(Math.round(80 * getResources().getDisplayMetrics().density));
+
+            m_list.addItemDecoration(materialDivider);
+        }
 
         m_adapter = new ArticleListAdapter();
         m_list.setAdapter(m_adapter);
@@ -1090,7 +1098,7 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
             }
 
             if (holder.titleView != null) {
-                holder.titleView.setTypeface(null, article.unread ? Typeface.BOLD : Typeface.NORMAL);
+                holder.titleView.setTypeface(null, Typeface.NORMAL);
                 holder.titleView.setTextColor(article.unread ? m_colorOnSurface : m_colorPrimary);
             }
 

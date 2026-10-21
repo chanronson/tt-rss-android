@@ -18,10 +18,22 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.fox.ttrss.mtls.ApiClientSelector;
+import org.fox.ttrss.mtls.ClientCertificateManager;
+import org.fox.ttrss.mtls.MutualTls;
+import org.fox.ttrss.mtls.SameOriginRedirectInterceptor;
+
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
 
 import okhttp3.Credentials;
 import okhttp3.HttpUrl;
@@ -47,13 +59,20 @@ public class ApiCommon {
     private static final Gson GSON = new Gson();
     private static final MediaType TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
 
-    private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .addInterceptor(new RetryInterceptor())
-            .addNetworkInterceptor(createInterceptor())
-            .build();
+    private static final Object CLIENT_LOCK = new Object();
+    private static volatile CachedClient sCachedClient;
+
+    private static final class CachedClient {
+        final int generation;
+        final ApiClientSelector.Mode mode;
+        final OkHttpClient client;
+
+        CachedClient(int generation, ApiClientSelector.Mode mode, OkHttpClient client) {
+            this.generation = generation;
+            this.mode = mode;
+            this.client = client;
+        }
+    }
 
     public interface ApiCaller {
         void setStatusCode(int statusCode);
@@ -68,7 +87,8 @@ public class ApiCommon {
     public enum ApiError {
         SUCCESS, UNKNOWN_ERROR, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, HTTP_BAD_REQUEST,
         HTTP_SERVER_ERROR, HTTP_OTHER_ERROR, SSL_REJECTED, SSL_HOSTNAME_REJECTED, PARSE_ERROR, IO_ERROR, OTHER_ERROR, API_DISABLED,
-        API_UNKNOWN, LOGIN_FAILED, INVALID_URL, API_INCORRECT_USAGE, NETWORK_UNAVAILABLE, API_UNKNOWN_METHOD
+        API_UNKNOWN, LOGIN_FAILED, INVALID_URL, API_INCORRECT_USAGE, NETWORK_UNAVAILABLE, API_UNKNOWN_METHOD,
+        CLIENT_CERTIFICATE_ERROR, REDIRECT_BLOCKED
     }
 
     public static int getErrorMessage(ApiError error) {
@@ -113,10 +133,70 @@ public class ApiCommon {
                 return R.string.error_api_incorrect_usage;
             case NETWORK_UNAVAILABLE:
                 return R.string.error_network_unavailable;
+            case CLIENT_CERTIFICATE_ERROR:
+                return R.string.error_client_certificate;
+            case REDIRECT_BLOCKED:
+                return R.string.error_redirect_blocked;
             default:
                 Log.d(TAG, "getErrorMessage: unknown error code=" + error);
                 return R.string.error_unknown;
         }
+    }
+
+    private static OkHttpClient getClient(Context context, ApiClientSelector.Mode mode,
+                                          ClientCertificateManager.Snapshot snapshot)
+            throws GeneralSecurityException {
+        int generation = snapshot == null ? 0 : snapshot.getGeneration();
+        CachedClient cached = sCachedClient;
+
+        if (cached != null && cached.generation == generation && cached.mode == mode) {
+            return cached.client;
+        }
+
+        synchronized (CLIENT_LOCK) {
+            cached = sCachedClient;
+
+            if (cached != null && cached.generation == generation && cached.mode == mode) {
+                return cached.client;
+            }
+
+            OkHttpClient client = buildClient(context, mode, snapshot);
+            sCachedClient = new CachedClient(generation, mode, client);
+
+            return client;
+        }
+    }
+
+    private static OkHttpClient buildClient(Context context, ApiClientSelector.Mode mode,
+                                            ClientCertificateManager.Snapshot snapshot)
+            throws GeneralSecurityException {
+        OkHttpClient.Builder builder = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS);
+
+        if (mode == ApiClientSelector.Mode.MTLS) {
+            SSLSocketFactory socketFactory = MutualTls.socketFactory(snapshot.getSslContext());
+            X509TrustManager trustManager = MutualTls.trustManager();
+
+            builder.sslSocketFactory(socketFactory, trustManager)
+                    .followRedirects(false)
+                    .followSslRedirects(false)
+                    .addInterceptor(new SameOriginRedirectInterceptor(
+                            () -> currentOrigin(context.getApplicationContext())));
+        }
+
+        builder.addInterceptor(new RetryInterceptor());
+        builder.addNetworkInterceptor(createInterceptor());
+
+        return builder.build();
+    }
+
+    private static HttpUrl currentOrigin(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        String url = prefs.getString("ttrss_url", "").trim();
+
+        return HttpUrl.parse(url);
     }
 
     static boolean isNetworkAvailable(Context context) {
@@ -142,6 +222,27 @@ public class ApiCommon {
 
             if (m_transportDebugging) Log.d(TAG, ">>> " + payload + " -> " + apiUrl);
 
+            ClientCertificateManager certificateManager = ClientCertificateManager.getInstance();
+            ClientCertificateManager.Snapshot snapshot = certificateManager.ensureLoaded();
+            ApiClientSelector.Mode clientMode = ApiClientSelector.select(
+                    certificateManager.getState(), apiUrl);
+
+            if (clientMode == ApiClientSelector.Mode.ERROR) {
+                caller.setLastError(ApiError.CLIENT_CERTIFICATE_ERROR);
+                caller.setLastErrorMessage(context.getString(R.string.error_client_certificate));
+                return null;
+            }
+
+            OkHttpClient client;
+
+            try {
+                client = getClient(context, clientMode, snapshot);
+            } catch (GeneralSecurityException e) {
+                caller.setLastError(ApiError.CLIENT_CERTIFICATE_ERROR);
+                caller.setLastErrorMessage(e.getMessage());
+                return null;
+            }
+
             Request.Builder requestBuilder = new Request.Builder()
                     .url(apiUrl)
                     .header("User-Agent", getUserAgent(context))
@@ -159,7 +260,7 @@ public class ApiCommon {
 
             Request request = requestBuilder.build();
 
-            try (Response response = CLIENT.newCall(request).execute()) {
+            try (Response response = client.newCall(request).execute()) {
 
                 if (response.isSuccessful()) {
                     String payloadReceived = response.body().string();
@@ -204,6 +305,12 @@ public class ApiCommon {
                     }
 
                 } else {
+                    if (response.header(SameOriginRedirectInterceptor.HEADER_REDIRECT_BLOCKED) != null) {
+                        caller.setLastError(ApiError.REDIRECT_BLOCKED);
+                        caller.setLastErrorMessage(context.getString(R.string.error_redirect_blocked));
+                        return null;
+                    }
+
                     switch (response.code()) {
                         case 400:
                             caller.setLastError(ApiError.HTTP_BAD_REQUEST);
@@ -231,9 +338,21 @@ public class ApiCommon {
 
                 return null;
             }
-        } catch (javax.net.ssl.SSLPeerUnverifiedException e) {
+        } catch (SSLPeerUnverifiedException e) {
             caller.setLastError(ApiError.SSL_REJECTED);
             caller.setLastErrorMessage(e.getMessage());
+            e.printStackTrace();
+        } catch (SSLHandshakeException e) {
+            caller.setLastError(ApiError.SSL_REJECTED);
+
+            String message = e.getMessage();
+            if (ClientCertificateManager.getInstance().getState()
+                    == ClientCertificateManager.State.READY) {
+                String hint = context.getString(R.string.error_ssl_certificate_hint);
+                message = message == null ? hint : message + "\n" + hint;
+            }
+
+            caller.setLastErrorMessage(message);
             e.printStackTrace();
         } catch (IOException e) {
             caller.setLastError(ApiError.IO_ERROR);
@@ -281,7 +400,7 @@ public class ApiCommon {
         };
     }
 
-    private static class RetryInterceptor implements Interceptor {
+    static class RetryInterceptor implements Interceptor {
         private static final int MAX_ATTEMPTS = 3;
         private static final long INITIAL_BACKOFF_MS = 500;
 
@@ -296,6 +415,7 @@ public class ApiCommon {
                     return chain.proceed(request);
                 } catch (IOException e) {
                     lastException = e;
+                    if (e instanceof SSLException) break;
                     if (attempt == MAX_ATTEMPTS - 1) break;
 
                     long backoff = INITIAL_BACKOFF_MS * (1L << attempt);

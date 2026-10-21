@@ -14,4 +14,19 @@
             android:title="@string/password" >
         </EditTextPreference>
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/client_certificate_category" >
+        <Preference
+            android:key="client_certificate_import"
+            android:persistent="false"
+            android:title="@string/client_certificate_import" />
+        <Preference
+            android:key="client_certificate_remove"
+            android:persistent="false"
+            android:title="@string/client_certificate_remove" />
+        <Preference
+            android:key="client_certificate_note"
+            android:persistent="false"
+            android:selectable="false"
+            android:title="@string/client_certificate_note" />
+    </PreferenceCategory>
 </PreferenceScreen>

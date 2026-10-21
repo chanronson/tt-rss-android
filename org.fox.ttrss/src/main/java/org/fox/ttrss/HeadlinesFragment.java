@@ -1284,7 +1284,7 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
         private void updateTitleView(final Article article, final ArticleViewHolder holder) {
             if (holder.titleView != null) {
                 holder.titleView.setText(HtmlCompat.fromHtml(article.title, HtmlCompat.FROM_HTML_MODE_LEGACY));
-                holder.titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, Math.min(21, m_headlineFontSize + 3));
+                holder.titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, DisplaySettings.headlineTitleSize(m_headlineFontSize));
             }
 
             if (holder.feedTitleView != null) {

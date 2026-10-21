@@ -1,12 +1,16 @@
 package org.fox.ttrss.util;
 
-public class DisplaySettings {
+public final class DisplaySettings {
+	private DisplaySettings() {
+	}
+
 	public static int clampHeadlineFontSize(int base) {
 		return Math.max(2, Math.min(21, base));
 	}
 
 	public static int headlineTitleSize(int base) {
-		return Math.min(21, base + 3);
+		int clamped = clampHeadlineFontSize(base);
+		return Math.min(21, clamped + 3);
 	}
 
 	public static int headlineSmallSize(int base) {

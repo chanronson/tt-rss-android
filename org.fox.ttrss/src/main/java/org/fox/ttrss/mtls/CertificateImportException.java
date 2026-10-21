@@ -8,7 +8,8 @@ public final class CertificateImportException extends Exception {
 		MISSING_CHAIN,
 		UNSUPPORTED_KEY,
 		EXPIRED,
-		NOT_YET_VALID
+		NOT_YET_VALID,
+		STORE_ERROR
 	}
 
 	private final Reason m_reason;

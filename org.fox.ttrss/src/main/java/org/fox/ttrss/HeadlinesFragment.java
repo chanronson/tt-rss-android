@@ -79,6 +79,7 @@ import org.fox.ttrss.types.Article;
 import org.fox.ttrss.types.Attachment;
 import org.fox.ttrss.types.Feed;
 import org.fox.ttrss.util.ArticleDiffItemCallback;
+import org.fox.ttrss.util.DisplaySettings;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
@@ -780,8 +781,8 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
             m_colorTertiaryContainer = colorFromAttr(R.attr.colorTertiaryContainer);
             m_colorOnTertiaryContainer = colorFromAttr(R.attr.colorOnTertiaryContainer);
 
-            m_headlineFontSize = m_prefs.getInt("headlines_font_size_sp_int", 13);
-            m_headlineSmallFontSize = Math.max(10, Math.min(18, m_headlineFontSize - 2));
+            m_headlineFontSize = DisplaySettings.clampHeadlineFontSize(m_prefs.getInt("headlines_font_size_sp_int", 13));
+            m_headlineSmallFontSize = DisplaySettings.headlineSmallSize(m_headlineFontSize);
 
             m_enableIconTinting = m_prefs.getBoolean("enable_icon_tinting", true);
 

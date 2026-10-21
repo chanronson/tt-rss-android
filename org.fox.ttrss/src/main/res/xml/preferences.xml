@@ -101,7 +101,7 @@
 
         <SeekBarPreference
             app:defaultValue="13"
-            app:min="12"
+            app:min="2"
             android:max="21"
             app:showSeekBarValue="true"
             app:key="headlines_font_size_sp_int"

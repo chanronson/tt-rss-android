@@ -13,16 +13,20 @@ import com.bumptech.glide.integration.okhttp3.OkHttpUrlLoader;
 import com.bumptech.glide.load.model.GlideUrl;
 import com.bumptech.glide.module.AppGlideModule;
 
+import org.fox.ttrss.mtls.ClientCertificateManager;
+import org.fox.ttrss.mtls.DynamicImageCallFactory;
+import org.fox.ttrss.mtls.ImageClientFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
+import okhttp3.Call;
 import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
 import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
@@ -36,12 +40,13 @@ import okio.Source;
 public class OkHttpProgressGlideModule extends AppGlideModule {
     @Override
     public void registerComponents(Context context, Glide glide, Registry registry) {
-        OkHttpClient client = new OkHttpClient.Builder()
-                .addNetworkInterceptor(createInterceptor(new DispatchingProgressListener()))
-                .build();
+        Interceptor progressInterceptor = createInterceptor(new DispatchingProgressListener());
+        ImageClientFactory imageClientFactory = new ImageClientFactory(progressInterceptor);
+        Call.Factory callFactory = new DynamicImageCallFactory(context, imageClientFactory,
+                ClientCertificateManager.getInstance());
 
         // registry.append() doesn't work...
-        registry.prepend(GlideUrl.class, InputStream.class, new OkHttpUrlLoader.Factory(client));
+        registry.prepend(GlideUrl.class, InputStream.class, new OkHttpUrlLoader.Factory(callFactory));
 
         registry.prepend(File.class, BitmapFactory.Options.class, new BitmapSizeDecoder());
         registry.register(BitmapFactory.Options.class, Size.class, new OptionsSizeResourceTranscoder());

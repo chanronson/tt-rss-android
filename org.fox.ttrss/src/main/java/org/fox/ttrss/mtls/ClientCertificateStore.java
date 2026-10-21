@@ -13,6 +13,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.SecureRandom;
@@ -95,9 +96,11 @@ public class ClientCertificateStore {
 		byte[] iv = Arrays.copyOfRange(container, offset, offset + IV_LENGTH);
 		byte[] ciphertext = Arrays.copyOfRange(container, offset + IV_LENGTH, container.length);
 
+		byte[] payload = null;
+
 		try {
 			Cipher cipher = m_cipherProvider.decryptCipher(iv, aad());
-			byte[] payload = cipher.doFinal(ciphertext);
+			payload = cipher.doFinal(ciphertext);
 			return CertificatePayloadCodec.decode(payload);
 		} catch (AEADBadTagException e) {
 			throw new StoreException(StoreException.Reason.AUTH,
@@ -112,6 +115,7 @@ public class ClientCertificateStore {
 			throw new StoreException(StoreException.Reason.IO,
 					"cannot decrypt certificate store", e);
 		} finally {
+			if (payload != null) Arrays.fill(payload, (byte) 0);
 			Arrays.fill(ciphertext, (byte) 0);
 		}
 	}
@@ -155,7 +159,14 @@ public class ClientCertificateStore {
 	}
 
 	public boolean clearFile() {
-		return !m_file.exists() || m_file.delete();
+		if (!m_file.exists()) return true;
+
+		try {
+			new AtomicFile(m_file).delete();
+			return !m_file.exists();
+		} catch (RuntimeException e) {
+			return false;
+		}
 	}
 
 	public boolean clearKey() {
@@ -202,7 +213,7 @@ public class ClientCertificateStore {
 				throws GeneralSecurityException {
 			try {
 				return initCipher(mode, iv, aad, getOrCreateKey());
-			} catch (KeyPermanentlyInvalidatedException e) {
+			} catch (KeyPermanentlyInvalidatedException | InvalidAlgorithmParameterException e) {
 				deleteKey();
 				return initCipher(mode, iv, aad, getOrCreateKey());
 			}
@@ -241,6 +252,7 @@ public class ClientCertificateStore {
 					KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
 					.setBlockModes(KeyProperties.BLOCK_MODE_GCM)
 					.setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+					.setRandomizedEncryptionRequired(false)
 					.setKeySize(256)
 					.build());
 

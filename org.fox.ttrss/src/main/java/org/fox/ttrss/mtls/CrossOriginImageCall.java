@@ -16,6 +16,7 @@ public class CrossOriginImageCall implements Call {
 	private final Call m_delegate;
 	private final Call.Factory m_plainFactory;
 	private volatile Call m_plainCall;
+	private volatile boolean m_canceled;
 
 	public CrossOriginImageCall(Call delegate, Call.Factory plainFactory) {
 		m_delegate = delegate;
@@ -31,6 +32,11 @@ public class CrossOriginImageCall implements Call {
 	public Response execute() throws IOException {
 		Response response = m_delegate.execute();
 
+		if (m_canceled) {
+			response.close();
+			throw new IOException("Canceled");
+		}
+
 		if (!isBlocked(response)) return response;
 
 		Request next = redirectedRequest(response);
@@ -41,6 +47,11 @@ public class CrossOriginImageCall implements Call {
 
 		Call plainCall = m_plainFactory.newCall(next);
 		m_plainCall = plainCall;
+
+		if (m_canceled) {
+			plainCall.cancel();
+			throw new IOException("Canceled");
+		}
 
 		return plainCall.execute();
 	}
@@ -69,8 +80,20 @@ public class CrossOriginImageCall implements Call {
 
 				response.close();
 
+				if (m_canceled) {
+					callback.onFailure(CrossOriginImageCall.this, new IOException("Canceled"));
+					return;
+				}
+
 				Call plainCall = m_plainFactory.newCall(next);
 				m_plainCall = plainCall;
+
+				if (m_canceled) {
+					plainCall.cancel();
+					callback.onFailure(CrossOriginImageCall.this, new IOException("Canceled"));
+					return;
+				}
+
 				plainCall.enqueue(new Callback() {
 					@Override
 					public void onFailure(Call call, IOException e) {
@@ -88,6 +111,7 @@ public class CrossOriginImageCall implements Call {
 
 	@Override
 	public void cancel() {
+		m_canceled = true;
 		m_delegate.cancel();
 
 		Call plainCall = m_plainCall;
@@ -152,6 +176,11 @@ public class CrossOriginImageCall implements Call {
 		if (target == null) return null;
 
 		Request.Builder builder = response.request().newBuilder().url(target);
+
+		if (!RedirectPolicy.isSameOrigin(target, response.request().url())) {
+			builder.removeHeader("Authorization");
+			builder.removeHeader("Cookie");
+		}
 
 		if (!RedirectPolicy.keepsMethod(response.code())) {
 			builder.method("GET", null);

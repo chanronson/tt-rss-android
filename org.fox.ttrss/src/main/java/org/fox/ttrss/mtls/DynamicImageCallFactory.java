@@ -37,7 +37,13 @@ public class DynamicImageCallFactory implements Call.Factory {
 
 	public DynamicImageCallFactory(Context context, ImageClientFactory factory,
 			ClientCertificateManager manager) {
-		m_prefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+		this(PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext()),
+				factory, manager);
+	}
+
+	DynamicImageCallFactory(SharedPreferences prefs, ImageClientFactory factory,
+			ClientCertificateManager manager) {
+		m_prefs = prefs;
 		m_factory = factory;
 		m_manager = manager;
 	}
@@ -63,10 +69,10 @@ public class DynamicImageCallFactory implements Call.Factory {
 							new IOException("client certificate unavailable", e));
 				}
 			case ERROR:
+			case LOADING:
 				return new FailingCall(request,
 						new IOException("client certificate unavailable"));
 			case NONE:
-			case LOADING:
 			default:
 				return m_factory.plainClient().newCall(request);
 		}

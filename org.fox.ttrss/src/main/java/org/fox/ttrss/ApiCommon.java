@@ -183,7 +183,7 @@ public class ApiCommon {
                     .followRedirects(false)
                     .followSslRedirects(false)
                     .addInterceptor(new SameOriginRedirectInterceptor(
-                            () -> currentOrigin(context)));
+                            () -> currentOrigin(context.getApplicationContext())));
         }
 
         builder.addInterceptor(new RetryInterceptor());
@@ -229,7 +229,7 @@ public class ApiCommon {
 
             if (clientMode == ApiClientSelector.Mode.ERROR) {
                 caller.setLastError(ApiError.CLIENT_CERTIFICATE_ERROR);
-                caller.setLastErrorMessage("client certificate cannot be loaded");
+                caller.setLastErrorMessage(context.getString(R.string.error_client_certificate));
                 return null;
             }
 
@@ -307,7 +307,7 @@ public class ApiCommon {
                 } else {
                     if (response.header(SameOriginRedirectInterceptor.HEADER_REDIRECT_BLOCKED) != null) {
                         caller.setLastError(ApiError.REDIRECT_BLOCKED);
-                        caller.setLastErrorMessage("redirect to a different origin was blocked");
+                        caller.setLastErrorMessage(context.getString(R.string.error_redirect_blocked));
                         return null;
                     }
 
@@ -400,7 +400,7 @@ public class ApiCommon {
         };
     }
 
-    private static class RetryInterceptor implements Interceptor {
+    static class RetryInterceptor implements Interceptor {
         private static final int MAX_ATTEMPTS = 3;
         private static final long INITIAL_BACKOFF_MS = 500;
 

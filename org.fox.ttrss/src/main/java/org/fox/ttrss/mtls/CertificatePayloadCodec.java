@@ -12,6 +12,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public final class CertificatePayloadCodec {
@@ -41,7 +42,11 @@ public final class CertificatePayloadCodec {
 			if (keyBytes == null) {
 				throw new IllegalArgumentException("private key has no PKCS#8 encoding");
 			}
-			writeBytes(out, keyBytes, MAX_KEY_BYTES);
+			try {
+				writeBytes(out, keyBytes, MAX_KEY_BYTES);
+			} finally {
+				Arrays.fill(keyBytes, (byte) 0);
+			}
 
 			List<X509Certificate> chain = certificate.getChain();
 			if (chain.isEmpty() || chain.size() > MAX_CHAIN_LENGTH) {
@@ -89,7 +94,12 @@ public final class CertificatePayloadCodec {
 			}
 
 			KeyFactory keyFactory = KeyFactory.getInstance(algorithm);
-			PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+			PrivateKey privateKey;
+			try {
+				privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+			} finally {
+				Arrays.fill(keyBytes, (byte) 0);
+			}
 
 			CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
 			List<X509Certificate> chain = new ArrayList<>(chainLength);

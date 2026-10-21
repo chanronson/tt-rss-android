@@ -170,7 +170,7 @@ public class NetworkPreferencesFragment extends PreferenceFragmentCompat {
 			}
 
 			return new ReadResult(out.toByteArray(), false);
-		} catch (IOException e) {
+		} catch (IOException | RuntimeException e) {
 			return new ReadResult(null, false);
 		}
 	}
@@ -180,20 +180,27 @@ public class NetworkPreferencesFragment extends PreferenceFragmentCompat {
 		input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
 		input.setHint(R.string.client_certificate_password_hint);
 
-		new MaterialAlertDialogBuilder(requireContext())
+		boolean[] started = {false};
+
+		MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext())
 				.setTitle(R.string.client_certificate_password_title)
 				.setView(input)
 				.setCancelable(false)
 				.setPositiveButton(R.string.dialog_ok, (dialog, which) -> {
+					started[0] = true;
 					Editable editable = input.getText();
 					char[] password = new char[editable.length()];
 					editable.getChars(0, editable.length(), password, 0);
 					editable.clear();
 					startImport(data, password, displayName);
 				})
-				.setNegativeButton(R.string.dialog_cancel,
-						(dialog, which) -> Arrays.fill(data, (byte) 0))
-				.show();
+				.setNegativeButton(R.string.dialog_cancel, null);
+
+		builder.setOnDismissListener(dialog -> {
+			if (!started[0]) Arrays.fill(data, (byte) 0);
+		});
+
+		builder.show();
 	}
 
 	private void startImport(byte[] data, char[] password, String displayName) {
@@ -246,6 +253,8 @@ public class NetworkPreferencesFragment extends PreferenceFragmentCompat {
 	}
 
 	private void renderState(ClientCertificateManager.State state) {
+		if (!isAdded()) return;
+
 		Preference importPreference = findPreference("client_certificate_import");
 		Preference removePreference = findPreference("client_certificate_remove");
 

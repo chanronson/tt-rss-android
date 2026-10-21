@@ -11,9 +11,14 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 public final class ClientCertificateParser {
+	private static final int MAX_TEXT_BYTES = 4096;
+	private static final int MAX_KEY_BYTES = 65536;
+	private static final int MAX_CHAIN_LENGTH = 10;
+
 	private ClientCertificateParser() {
 	}
 
@@ -67,6 +72,12 @@ public final class ClientCertificateParser {
 							"certificate chain is empty");
 				}
 
+				if (chain.length > MAX_CHAIN_LENGTH) {
+					throw new CertificateImportException(
+							CertificateImportException.Reason.UNREADABLE,
+							"certificate chain is too long");
+				}
+
 				if (!(chain[0] instanceof X509Certificate)) {
 					throw new CertificateImportException(
 							CertificateImportException.Reason.MISSING_CHAIN,
@@ -109,6 +120,20 @@ public final class ClientCertificateParser {
 
 				String subject = leaf.getSubjectX500Principal().getName();
 				String name = displayName == null || displayName.isEmpty() ? subject : displayName;
+
+				if (subject.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES
+						|| name.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {
+					throw new CertificateImportException(
+							CertificateImportException.Reason.UNREADABLE,
+							"certificate text field is too large");
+				}
+
+				byte[] keyBytes = key.getEncoded();
+				if (keyBytes == null || keyBytes.length > MAX_KEY_BYTES) {
+					throw new CertificateImportException(
+							CertificateImportException.Reason.UNREADABLE,
+							"certificate key is too large");
+				}
 
 				return new ClientCertificate(name, subject, notAfter, algorithm,
 						(PrivateKey) key, certificates);

@@ -48,6 +48,64 @@ public class CrossOriginImageCallTest {
 		assertEquals(HttpUrl.parse("https://cdn.example/image.png"), captor.getValue().url());
 	}
 
+
+	@Test
+	public void enqueueFallsBackForBlockedResponse() throws Exception {
+		Request request = new Request.Builder().url("https://example.com/image.png").build();
+		Response blocked = mock(Response.class);
+		Call delegate = mock(Call.class);
+		Call.Factory plainFactory = mock(Call.Factory.class);
+		Call plainCall = mock(Call.class);
+		Callback callback = mock(Callback.class);
+
+		when(blocked.code()).thenReturn(302);
+		when(blocked.header(SameOriginRedirectInterceptor.HEADER_REDIRECT_BLOCKED)).thenReturn("1");
+		when(blocked.header("Location")).thenReturn("/cdn/image.png");
+		when(blocked.request()).thenReturn(request);
+		when(plainFactory.newCall(any(Request.class))).thenReturn(plainCall);
+
+		CrossOriginImageCall call = new CrossOriginImageCall(delegate, plainFactory);
+		call.enqueue(callback);
+
+		ArgumentCaptor<Callback> callbackCaptor = ArgumentCaptor.forClass(Callback.class);
+		verify(delegate).enqueue(callbackCaptor.capture());
+		callbackCaptor.getValue().onResponse(delegate, blocked);
+
+		verify(blocked).close();
+		ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+		verify(plainFactory).newCall(requestCaptor.capture());
+		assertEquals(HttpUrl.parse("https://example.com/cdn/image.png"),
+				requestCaptor.getValue().url());
+		verify(plainCall).enqueue(any(Callback.class));
+	}
+
+	@Test
+	public void crossOriginRetryRemovesAuthorization() throws Exception {
+		Request request = new Request.Builder()
+				.url("https://example.com/image.png")
+				.header("Authorization", "Basic secret")
+				.build();
+		Response blocked = mock(Response.class);
+		Response plainResponse = mock(Response.class);
+		Call delegate = mock(Call.class);
+		Call.Factory plainFactory = mock(Call.Factory.class);
+		Call plainCall = mock(Call.class);
+
+		when(blocked.code()).thenReturn(302);
+		when(blocked.header(SameOriginRedirectInterceptor.HEADER_REDIRECT_BLOCKED)).thenReturn("1");
+		when(blocked.header("Location")).thenReturn("https://cdn.example/image.png");
+		when(blocked.request()).thenReturn(request);
+		when(delegate.execute()).thenReturn(blocked);
+		when(plainFactory.newCall(any(Request.class))).thenReturn(plainCall);
+		when(plainCall.execute()).thenReturn(plainResponse);
+
+		new CrossOriginImageCall(delegate, plainFactory).execute();
+
+		ArgumentCaptor<Request> captor = ArgumentCaptor.forClass(Request.class);
+		verify(plainFactory).newCall(captor.capture());
+		assertEquals(null, captor.getValue().header("Authorization"));
+	}
+
 	@Test
 	public void nonBlockedResponseReturnsUnchanged() throws Exception {
 		Response normal = mock(Response.class);

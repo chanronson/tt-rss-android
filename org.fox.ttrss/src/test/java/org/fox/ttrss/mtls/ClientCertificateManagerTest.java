@@ -38,14 +38,18 @@ public class ClientCertificateManagerTest {
 	private SSLContext m_sslContext;
 	private ClientCertificateManager m_manager;
 	private final Executor m_direct = Runnable::run;
+	private final java.util.concurrent.atomic.AtomicBoolean m_failSsl =
+			new java.util.concurrent.atomic.AtomicBoolean(false);
 
 	@Before
 	public void setUp() throws Exception {
 		m_store = mock(ClientCertificateStore.class);
 		m_certificate = sample("client-rsa.p12");
 		m_sslContext = mock(SSLContext.class);
-		m_manager = new ClientCertificateManager(m_store, certificate -> m_sslContext,
-				m_direct, m_direct);
+		m_manager = new ClientCertificateManager(m_store, certificate -> {
+			if (m_failSsl.get()) throw new GeneralSecurityException("ssl failure");
+			return m_sslContext;
+		}, m_direct, m_direct);
 	}
 
 	private ClientCertificate sample(String name) throws Exception {
@@ -315,6 +319,77 @@ public class ClientCertificateManagerTest {
 
 		assertEquals(ClientCertificateManager.State.READY, m_manager.getState());
 		verify(m_store).save(any(ClientCertificate.class));
+	}
+
+	@Test
+	public void clientChangesWithGeneration() throws Exception {
+		loadReady();
+		ClientCertificateManager.Snapshot before = m_manager.getSnapshot();
+
+		m_manager.importCertificate(fixture("client-ec.p12"), "testpass".toCharArray(),
+				"client-ec.p12", new ClientCertificateManager.ImportCallback() {
+					@Override
+					public void onSuccess() {
+					}
+
+					@Override
+					public void onFailure(CertificateImportException.Reason reason) {
+						throw new AssertionError("unexpected failure: " + reason);
+					}
+				});
+
+		ClientCertificateManager.Snapshot after = m_manager.getSnapshot();
+		assertTrue(after.getGeneration() > before.getGeneration());
+		assertEquals("EC", after.getCertificate().getKeyAlgorithm());
+	}
+
+	@Test
+	public void importStoreFailureKeepsReadySnapshot() throws Exception {
+		loadReady();
+		ClientCertificateManager.Snapshot before = m_manager.getSnapshot();
+		org.mockito.Mockito.doThrow(new StoreException(StoreException.Reason.IO, "write failed"))
+				.when(m_store).save(any(ClientCertificate.class));
+		AtomicReference<CertificateImportException.Reason> failure = new AtomicReference<>();
+
+		m_manager.importCertificate(fixture("client-rsa.p12"), "testpass".toCharArray(),
+				"client-rsa.p12", new ClientCertificateManager.ImportCallback() {
+					@Override
+					public void onSuccess() {
+						throw new AssertionError("unexpected success");
+					}
+
+					@Override
+					public void onFailure(CertificateImportException.Reason reason) {
+						failure.set(reason);
+					}
+				});
+
+		assertSame(before, m_manager.getSnapshot());
+		assertEquals(CertificateImportException.Reason.STORE_ERROR, failure.get());
+	}
+
+	@Test
+	public void importSslFailureKeepsReadySnapshot() throws Exception {
+		loadReady();
+		ClientCertificateManager.Snapshot before = m_manager.getSnapshot();
+		m_failSsl.set(true);
+		AtomicReference<CertificateImportException.Reason> failure = new AtomicReference<>();
+
+		m_manager.importCertificate(fixture("client-rsa.p12"), "testpass".toCharArray(),
+				"client-rsa.p12", new ClientCertificateManager.ImportCallback() {
+					@Override
+					public void onSuccess() {
+						throw new AssertionError("unexpected success");
+					}
+
+					@Override
+					public void onFailure(CertificateImportException.Reason reason) {
+						failure.set(reason);
+					}
+				});
+
+		assertSame(before, m_manager.getSnapshot());
+		assertEquals(CertificateImportException.Reason.STORE_ERROR, failure.get());
 	}
 
 	@Test

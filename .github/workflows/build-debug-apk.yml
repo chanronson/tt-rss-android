@@ -34,7 +34,7 @@ jobs:
       shell: bash
       run: |
         echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-        echo "tag=$(git log -1 --date=format:'%y.%m' --format:'%cd')-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+        echo "tag=$(git log -1 --date='format:%y.%m' --format='%cd')-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
     - name: Set up Java
       uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -122,7 +122,7 @@ jobs:
       shell: bash
       run: |
         echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-        echo "tag=$(git log -1 --date=format:'%y.%m' --format:'%cd')-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+        echo "tag=$(git log -1 --date='format:%y.%m' --format='%cd')-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
     - name: Download debug APK
       env:

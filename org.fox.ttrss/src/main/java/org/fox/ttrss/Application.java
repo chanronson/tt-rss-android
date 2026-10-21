@@ -17,6 +17,8 @@ import org.acra.config.CoreConfigurationBuilder;
 import org.acra.config.DialogConfigurationBuilder;
 import org.acra.config.MailSenderConfigurationBuilder;
 import org.acra.data.StringFormat;
+import org.fox.ttrss.mtls.ClientCertificateManager;
+import org.fox.ttrss.mtls.MutualTls;
 import org.fox.ttrss.types.Article;
 
 import java.util.HashMap;
@@ -76,6 +78,8 @@ public class Application extends android.app.Application {
         m_sessionId = prefs.getString(PREF_SESSION_ID, null);
         m_apiLevel = prefs.getInt(PREF_API_LEVEL, 0);
         // m_sessionValid intentionally stays false here.
+
+        ClientCertificateManager.getInstance().initialize(this, MutualTls::createSslContext);
     }
 
     public String getSessionId() {

@@ -148,6 +148,7 @@
     <string name="offline_articles_to_download_long">How many articles to download for offline mode (newest first)</string>
     <string name="pref_headlines_show_content_long">Show content previews in headlines list</string>
     <string name="pref_headlines_show_content">Show content preview</string>
+    <string name="pref_headlines_show_text_icon">Show article icons</string>
     <string name="api_too_low">This action requires newer version of Tiny Tiny RSS</string>
     <string name="share_url_hint">Article URL</string>
     <string name="share_content_hint">Article Content</string>

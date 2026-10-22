@@ -11,6 +11,7 @@
     android:orientation="horizontal">
 
     <FrameLayout
+        android:id="@+id/text_image_holder"
         android:layout_gravity="center_vertical|start"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

@@ -16,4 +16,8 @@ public final class DisplaySettings {
 	public static int headlineSmallSize(int base) {
 		return Math.max(10, Math.min(18, base - 2));
 	}
+
+	public static int compactDividerInsetDp(boolean showIcon) {
+		return showIcon ? 80 : 16;
+	}
 }

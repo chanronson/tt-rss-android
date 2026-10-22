@@ -282,7 +282,7 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
 
         if (m_compactLayoutMode) {
             MaterialDividerItemDecoration materialDivider = new MaterialDividerItemDecoration(m_list.getContext(), m_layoutManager.getOrientation());
-            materialDivider.setDividerInsetStart(Math.round(80 * getResources().getDisplayMetrics().density));
+            materialDivider.setDividerInsetStart(Math.round(DisplaySettings.compactDividerInsetDp(m_prefs.getBoolean("headlines_show_text_icon", true)) * getResources().getDisplayMetrics().density));
 
             m_list.addItemDecoration(materialDivider);
         }
@@ -612,6 +612,7 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
         public View headlineFooter;
         public ImageView textImage;
         public ImageView textChecked;
+        public View textImageHolder;
         public View headlineHeader;
         public View flavorImageOverflow;
         public TextureView flavorVideoView;
@@ -655,6 +656,7 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
             flavorImageHolder = v.findViewById(R.id.flavor_image_holder);
             flavorImageLoadingBar = v.findViewById(R.id.flavor_image_progressbar);
             textImage = v.findViewById(R.id.text_image);
+            textImageHolder = v.findViewById(R.id.text_image_holder);
             textChecked = v.findViewById(R.id.text_checked);
             headlineHeader = v.findViewById(R.id.headline_header);
             flavorImageOverflow = v.findViewById(R.id.gallery_overflow);
@@ -1098,7 +1100,7 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
             }
 
             if (holder.titleView != null) {
-                holder.titleView.setTypeface(null, Typeface.NORMAL);
+                holder.titleView.setTypeface(article.unread ? Typeface.create("sans-serif-medium", Typeface.NORMAL) : null, Typeface.NORMAL);
                 holder.titleView.setTextColor(article.unread ? m_colorOnSurface : m_colorPrimary);
             }
 
@@ -1414,6 +1416,12 @@ public class HeadlinesFragment extends androidx.fragment.app.Fragment {
 
         private void updateTextImage(final Article article, final ArticleViewHolder holder) {
             if (holder.textImage != null) {
+                if (!m_prefs.getBoolean("headlines_show_text_icon", true)) {
+                    Glide.with(HeadlinesFragment.this).clear(holder.textImage);
+                    if (holder.textImageHolder != null) holder.textImageHolder.setVisibility(View.GONE);
+                    return;
+                }
+                if (holder.textImageHolder != null) holder.textImageHolder.setVisibility(View.VISIBLE);
                 updateTextCheckedState(article, holder);
 
                 ViewCompat.setTransitionName(holder.textImage,

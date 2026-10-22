@@ -127,6 +127,11 @@
             android:title="@string/pref_headlines_show_content" />
 
         <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="headlines_show_text_icon"
+            android:title="@string/pref_headlines_show_text_icon" />
+
+        <SwitchPreferenceCompat
             android:defaultValue="false"
             android:disableDependentsState="true"
             android:key="headlines_mark_read_scroll"

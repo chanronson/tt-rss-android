@@ -24,4 +24,10 @@ public class DisplaySettingsTest {
 		assertEquals(11, DisplaySettings.headlineSmallSize(13));
 		assertEquals(18, DisplaySettings.headlineSmallSize(21));
 	}
+
+	@Test
+	public void compactDividerInsetFollowsIconVisibility() {
+		assertEquals(80, DisplaySettings.compactDividerInsetDp(true));
+		assertEquals(16, DisplaySettings.compactDividerInsetDp(false));
+	}
 }
